@@ -1,0 +1,15 @@
+[package]
+authors = ["Chuck Cassel <ccassel@terpmail.umd.edu>", "Frederick Huang <frederick.huang02@gmail.com>", "Sean Yang <tyang23@terpmail.umd.edu>"]
+edition = "2021"
+name = "battleship"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# crossterm = "0.22.1"
+cursive = {version = "0.16", default-features = false}
+rand = "0.8.4"
+
+[features]
+default = ["cursive/crossterm-backend"]
