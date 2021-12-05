@@ -11,6 +11,8 @@ version = "0.1.0"
 cursive = {version = "0.16", default-features = false}
 rand = "0.8.4"
 regex = "1.5.4"
+piston_window = "0.120.0"
+find_folder = "0.3.0"
 
 [features]
 default = ["cursive/crossterm-backend"]

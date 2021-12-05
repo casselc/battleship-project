@@ -1,8 +1,16 @@
-use cursive::view::Margins;
-use cursive::views::{Dialog, EditView, LinearLayout, Panel, TextView};
-use cursive::{immut2, Cursive};
+mod utils;
+// use cursive::view::Margins;
+// use cursive::views::{Dialog, EditView, LinearLayout, Panel, TextView};
+// use cursive::{immut2, Cursive};
+use piston_window::color::GREEN;
 use rand::Rng;
 use std::ops::Not;
+use utils::{draw_block, draw_rectange};
+extern crate find_folder;
+use piston_window::*;
+
+const BACK_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
+// set the colors representing different statesx`
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 struct Position {
@@ -112,6 +120,44 @@ impl Board {
             out.push_str("\n");
         }
         out
+    }
+
+    pub fn render_board(
+        &self,
+        con: &Context,
+        g: &mut G2d,
+        x_offset: i32,
+        y_offset: i32,
+    ) {
+        // for row in 0..10 {
+        //     for col in 0..10 {
+        //         draw_block(color::GREEN, row + x_offset, col + y_offset, con, g);
+        //     }
+        // }
+        for row in 0i32..10 {
+            for col in 0i32..10 {
+                match self.cells[row as usize][col as usize] {
+                    BoardCell::Empty => {
+                        draw_block(color::BLUE, row + x_offset, col + y_offset, con, g)
+                    }
+                    BoardCell::Ship => {
+                        draw_block(color::LIME, row + x_offset, col + y_offset, con, g)
+                    }
+                    BoardCell::DamagedShip => {
+                        draw_block(color::YELLOW, row + x_offset, col + y_offset, con, g)
+                    }
+                    BoardCell::DestroyedShip => {
+                        draw_block(color::RED, row + x_offset, col + y_offset, con, g)
+                    }
+                    BoardCell::FailedAttack => {
+                        draw_block(color::NAVY, row + x_offset, col + y_offset, con, g)
+                    }
+                    BoardCell::SuccessfulAttack => {
+                        draw_block(color::GREEN, row + x_offset, col + y_offset, con, g)
+                    }
+                }
+            }
+        }
     }
 
     pub fn set_cell(&mut self, pos: Position, value: BoardCell) {
@@ -337,78 +383,152 @@ impl GameState {
     }
 }
 
-fn game_over(s: &mut Cursive, winner: PlayerID) {
+fn game_over( winner: PlayerID) {
     let winner_text = match winner {
         PlayerID::P1 => "Player 1 Wins!",
         PlayerID::P2 => "Player 2 Wins!",
     };
-    s.pop_layer();
-    s.add_layer(
-        Dialog::text(winner_text)
-            .title("Game Over")
-            .button("OK", |s| choose_game_type(s)),
-    )
+    // s.pop_layer();
+    // s.add_layer(
+    //     Dialog::text(winner_text)
+    //         .title("Game Over")
+    //         .button("OK", |s| choose_game_type(s)),
+    // )
 }
 
-fn single_player_loop(s: &mut Cursive, game: &mut GameState) {
-    s.pop_layer();
+fn single_player_loop(game: &mut GameState) {
+    // s.pop_layer();
     match game.status {
         GameStatus::InProgress => {
-            let next_attack = EditView::new();
-            s.add_layer(
-                Dialog::around(
-                    LinearLayout::vertical()
-                        .child(
-                            LinearLayout::horizontal()
-                                .child(
-                                    Panel::new(TextView::new(game.ships[0].board_string()))
-                                        .title("Ships"),
-                                )
-                                .child(
-                                    Panel::new(TextView::new(game.attacks[0].board_string()))
-                                        .title("Attacks"),
-                                ),
-                        )
-                        .child(next_attack),
-                )
-                .padding(Margins::lrtb(1, 1, 1, 1))
-                .title("Enter Attack Location")
-                .button("Quit", |s| s.quit())
-                .button("Restart", |s| choose_game_type(s)),
-            )
+            // let next_attack = EditView::new();
+            // s.add_layer(
+            //     Dialog::around(
+            //         LinearLayout::vertical()
+            //             .child(
+            //                 LinearLayout::horizontal()
+            //                     .child(
+            //                         Panel::new(TextView::new(game.ships[0].board_string()))
+            //                             .title("Ships"),
+            //                     )
+            //                     .child(
+            //                         Panel::new(TextView::new(game.attacks[0].board_string()))
+            //                             .title("Attacks"),
+            //                     ),
+            //             )
+            //             .child(next_attack),
+            //     )
+            //     .padding(Margins::lrtb(1, 1, 1, 1))
+            //     .title("Enter Attack Location")
+            //     .button("Quit", |s| s.quit())
+            //     .button("Restart", |s| choose_game_type(s)),
+            // )
         }
-        GameStatus::Complete(winner) => game_over(s, winner),
+        GameStatus::Complete(winner) => game_over(winner),
         GameStatus::NotStarted => {
             game.start();
-            single_player_loop(s, game)
+            single_player_loop(game)
         }
     }
 }
 
-fn start_single_player(s: &mut Cursive) {
+fn start_single_player() {
     let mut game = GameState::initialize();
-    single_player_loop(s, &mut game)
+    single_player_loop(&mut game)
 }
 
-fn choose_game_type(s: &mut Cursive) {
-    s.pop_layer();
-    s.add_layer(
-        Dialog::text("Start a new game\nHow many players?")
-            .title("Battleship")
-            .button("1 Player", |s| start_single_player(s))
-            .button("2 Players", |s| {
-                s.add_layer(Dialog::info("Not implemented."))
-            })
-            .button("Quit", |s| s.quit()),
-    );
+// fn choose_game_type(s: &mut Cursive) {
+//     s.pop_layer();
+//     s.add_layer(
+//         Dialog::text("Start a new game\nHow many players?")
+//             .title("Battleship")
+//             .button("1 Player", |s| start_single_player(s))
+//             .button("2 Players", |s| {
+//                 s.add_layer(Dialog::info("Not implemented."))
+//             })
+//             .button("Quit", |s| s.quit()),
+//     );
+// }
+
+// helper method to render a game state
+fn render(con: &Context, g: &mut G2d, glyphs: &mut Glyphs, game: &mut GameState) {
+    // draw the grid
+    game.ships[0].render_board(con, g, 1, 1);
+    game.attacks[0].render_board(con, g, 20, 1);
+    let transform = con.transform.trans(25.0 * 13.0, 25.0);
+    // paint the text
+    text::Text::new_color(color::WHITE, 20)
+        .draw("Battle ship game", glyphs, &con.draw_state, transform, g)
+        .unwrap();
 }
 fn main() {
-    let mut siv = cursive::default();
-    siv.add_global_callback('q', |s| s.quit());
+    let (width, height) = (40, 20);
 
-    // let mut game = GameState::initialize();
+    let mut window: PistonWindow = WindowSettings::new(
+        "CMSC388Z Snake Game",
+        [
+            ((width as f64) * 25.0) as u32,
+            ((height as f64) * 25.0) as u32,
+        ],
+    )
+    .exit_on_esc(true)
+    .build()
+    .unwrap();
 
-    // single_player_loop(&mut siv, &mut game);
-    choose_game_type(&mut siv);
-    siv.run();
+    let mut mouse = [0.0, 0.0];
+    let assets = find_folder::Search::ParentsThenKids(3, 3)
+        .for_folder("assets")
+        .unwrap();
+    println!("{:?}", assets);
+    let mut glyphs = window
+        .load_font(assets.join("FiraSans-Regular.ttf"))
+        .unwrap();
+    let mut game = GameState::initialize();
+    game.start();
+
+    while let Some(event) = window.next() {
+        if let Some(Button::Keyboard(key)) = event.press_args() {
+            // press key reaction for the board?
+            // game.key_pressed(key);
+        }
+
+        // clear the window
+        // custom draw method to rerender everything
+        // the draw becoems the render method
+        window.draw_2d(&event, |c, g, device| {
+            clear(BACK_COLOR, g);
+            // draw the board and character replace with render method with things passed in
+            render(&c, g, &mut glyphs, &mut game);
+            glyphs.factory.encoder.flush(device);
+        });
+
+        if let Some(pos) = event.mouse_cursor_args() {
+            mouse = pos;
+        }
+        if let Some(button) = event.press_args() {
+            // Find coordinates relative to upper left corner.
+            //let x = event.cursor_pos[0] - pos[0];
+            //let y = event.cursor_pos[1] - pos[1];
+            // Check that coordinates are inside board boundaries.
+            if button == Button::Mouse(MouseButton::Left) {
+                // calculate if we are at a board location
+                println!(
+                    "cell location is {} {}",
+                    (mouse[0] / 25.0).floor(),
+                    (mouse[1] / 25.0).floor()
+                );
+            }
+        }
+        // update the arguments
+        // event.update(|arg| {
+        //     game.update(arg.dt);
+        // });
+    }
+    // let mut siv = cursive::default();
+    // siv.add_global_callback('q', |s| s.quit());
+
+    // // let mut game = GameState::initialize();
+
+    // // single_player_loop(&mut siv, &mut game);
+    // choose_game_type(&mut siv);
+    // siv.run();
 }
