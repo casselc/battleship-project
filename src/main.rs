@@ -2,14 +2,19 @@ mod utils;
 // use cursive::view::Margins;
 // use cursive::views::{Dialog, EditView, LinearLayout, Panel, TextView};
 // use cursive::{immut2, Cursive};
-use piston_window::color::GREEN;
 use rand::Rng;
 use std::ops::Not;
-use utils::{draw_block, draw_rectange};
+use std::time::{SystemTime, UNIX_EPOCH};
+use utils::{draw_block, draw_circle};
 extern crate find_folder;
 use piston_window::*;
 
 const BACK_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
+const OWN_OFFSET_X: i32 = 3;
+const OWN_OFFSET_Y: i32 = 3;
+const ENEMY_OFFSET_X: i32 = 18;
+const ENEMY_OFFSET_Y: i32 = 3;
+const BLOCK_SIZE: f64 = 25.0;
 // set the colors representing different statesx`
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -101,34 +106,7 @@ impl Board {
         }
     }
 
-    pub fn board_string(&self) -> String {
-        let mut out = String::new();
-        out.push_str("   1 2 3 4 5 6 7 8 9 10\n");
-        for row in 0usize..10 {
-            out.push(('A' as u8 + row as u8) as char);
-            out.push(' ');
-            for col in 0usize..10 {
-                match self.cells[row][col] {
-                    BoardCell::Empty => out.push_str("🟦"),
-                    BoardCell::Ship => out.push_str("🟩"),
-                    BoardCell::DamagedShip => out.push_str("🟥"),
-                    BoardCell::DestroyedShip => out.push_str("🟥"),
-                    BoardCell::FailedAttack => out.push_str("🟪"),
-                    BoardCell::SuccessfulAttack => out.push_str("🟥"),
-                }
-            }
-            out.push_str("\n");
-        }
-        out
-    }
-
-    pub fn render_board(
-        &self,
-        con: &Context,
-        g: &mut G2d,
-        x_offset: i32,
-        y_offset: i32,
-    ) {
+    pub fn render_board(&self, con: &Context, g: &mut G2d, x_offset: i32, y_offset: i32) {
         // for row in 0..10 {
         //     for col in 0..10 {
         //         draw_block(color::GREEN, row + x_offset, col + y_offset, con, g);
@@ -138,13 +116,13 @@ impl Board {
             for col in 0i32..10 {
                 match self.cells[row as usize][col as usize] {
                     BoardCell::Empty => {
-                        draw_block(color::BLUE, row + x_offset, col + y_offset, con, g)
+                        draw_block(color::CYAN, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::Ship => {
                         draw_block(color::LIME, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::DamagedShip => {
-                        draw_block(color::YELLOW, row + x_offset, col + y_offset, con, g)
+                        draw_block(color::RED, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::DestroyedShip => {
                         draw_block(color::RED, row + x_offset, col + y_offset, con, g)
@@ -153,7 +131,7 @@ impl Board {
                         draw_block(color::NAVY, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::SuccessfulAttack => {
-                        draw_block(color::GREEN, row + x_offset, col + y_offset, con, g)
+                        draw_block(color::RED, row + x_offset, col + y_offset, con, g)
                     }
                 }
             }
@@ -269,6 +247,7 @@ impl Player {
     }
 }
 
+#[derive(PartialEq)]
 enum GameStatus {
     NotStarted,
     InProgress,
@@ -356,9 +335,40 @@ impl GameState {
         valid
     }
 
-    fn do_attack(attack_board: &mut Board, target_board: &mut Board, attack_at: Position) -> bool {
-        let target_cell = target_board.get_cell_value(attack_at);
+    // check winner by looking at total ships remaining
+    fn check_winner(&mut self) {
+        let mut p1_count = 0;
+        let mut p2_count = 0;
+        // go over p2 board to check whether they are done
+        for x in 0..10 {
+            for y in 0..10 {
+                if self.ships[1].get_cell_value(Position { x, y }) == BoardCell::Ship {
+                    p2_count += 1;
+                }
+                if self.ships[0].get_cell_value(Position { x, y }) == BoardCell::Ship {
+                    p1_count += 1;
+                }
+            }
+        }
 
+        if p2_count == 0 {
+            self.status = GameStatus::Complete(PlayerID::P1);
+        } else if p1_count == 0 {
+            self.status = GameStatus::Complete(PlayerID::P2);
+        }
+    }
+
+    fn do_attack(
+        attack_board: &mut Board,
+        target_board: &mut Board,
+        attack_at: Position,
+        animations: &mut Vec<Animation>,
+    ) -> bool {
+        let target_cell = target_board.get_cell_value(attack_at);
+        animations.push(Animation {
+            time_remaining: 500.0,
+            position: attack_at,
+        });
         if target_cell == BoardCell::Ship {
             attack_board.set_cell(attack_at, BoardCell::SuccessfulAttack);
             target_board.set_cell(attack_at, BoardCell::DamagedShip);
@@ -369,10 +379,39 @@ impl GameState {
         }
     }
 
-    pub fn attack(&mut self, player: PlayerID, pos: Position) -> bool {
+    pub fn attack(
+        &mut self,
+        player: PlayerID,
+        pos: Position,
+        animations: &mut Vec<Animation>,
+    ) -> bool {
         match player {
-            PlayerID::P1 => GameState::do_attack(&mut self.attacks[0], &mut self.ships[1], pos),
-            PlayerID::P2 => GameState::do_attack(&mut self.attacks[1], &mut self.ships[0], pos),
+            PlayerID::P1 => {
+                GameState::do_attack(&mut self.attacks[0], &mut self.ships[1], pos, animations)
+            }
+            PlayerID::P2 => {
+                GameState::do_attack(&mut self.attacks[1], &mut self.ships[0], pos, animations)
+            }
+        }
+    }
+
+    pub fn randomly_attack(&mut self, player: PlayerID, animations: &mut Vec<Animation>) {
+        let mut random_pos = Position::random();
+        // check if random position is taken
+        match player {
+            PlayerID::P1 => {
+                // check and only allow attacks on empty cell
+                while self.attacks[0].get_cell_value(random_pos) != BoardCell::Empty {
+                    random_pos = Position::random();
+                }
+                self.attack(player, random_pos, animations);
+            }
+            PlayerID::P2 => {
+                while self.attacks[1].get_cell_value(random_pos) != BoardCell::Empty {
+                    random_pos = Position::random();
+                }
+                self.attack(player, random_pos, animations);
+            }
         }
     }
 
@@ -383,91 +422,102 @@ impl GameState {
     }
 }
 
-fn game_over( winner: PlayerID) {
-    let winner_text = match winner {
-        PlayerID::P1 => "Player 1 Wins!",
-        PlayerID::P2 => "Player 2 Wins!",
-    };
-    // s.pop_layer();
-    // s.add_layer(
-    //     Dialog::text(winner_text)
-    //         .title("Game Over")
-    //         .button("OK", |s| choose_game_type(s)),
-    // )
-}
-
-fn single_player_loop(game: &mut GameState) {
-    // s.pop_layer();
-    match game.status {
-        GameStatus::InProgress => {
-            // let next_attack = EditView::new();
-            // s.add_layer(
-            //     Dialog::around(
-            //         LinearLayout::vertical()
-            //             .child(
-            //                 LinearLayout::horizontal()
-            //                     .child(
-            //                         Panel::new(TextView::new(game.ships[0].board_string()))
-            //                             .title("Ships"),
-            //                     )
-            //                     .child(
-            //                         Panel::new(TextView::new(game.attacks[0].board_string()))
-            //                             .title("Attacks"),
-            //                     ),
-            //             )
-            //             .child(next_attack),
-            //     )
-            //     .padding(Margins::lrtb(1, 1, 1, 1))
-            //     .title("Enter Attack Location")
-            //     .button("Quit", |s| s.quit())
-            //     .button("Restart", |s| choose_game_type(s)),
-            // )
-        }
-        GameStatus::Complete(winner) => game_over(winner),
-        GameStatus::NotStarted => {
-            game.start();
-            single_player_loop(game)
-        }
-    }
-}
-
-fn start_single_player() {
-    let mut game = GameState::initialize();
-    single_player_loop(&mut game)
-}
-
-// fn choose_game_type(s: &mut Cursive) {
-//     s.pop_layer();
-//     s.add_layer(
-//         Dialog::text("Start a new game\nHow many players?")
-//             .title("Battleship")
-//             .button("1 Player", |s| start_single_player(s))
-//             .button("2 Players", |s| {
-//                 s.add_layer(Dialog::info("Not implemented."))
-//             })
-//             .button("Quit", |s| s.quit()),
-//     );
+// fn game_over( winner: PlayerID) {
+//     let winner_text = match winner {
+//         PlayerID::P1 => "Player 1 Wins!",
+//         PlayerID::P2 => "Player 2 Wins!",
+//     };
+//     // s.pop_layer();
+//     // s.add_layer(
+//     //     Dialog::text(winner_text)
+//     //         .title("Game Over")
+//     //         .button("OK", |s| choose_game_type(s)),
+//     // )
 // }
 
 // helper method to render a game state
 fn render(con: &Context, g: &mut G2d, glyphs: &mut Glyphs, game: &mut GameState) {
     // draw the grid
-    game.ships[0].render_board(con, g, 1, 1);
-    game.attacks[0].render_board(con, g, 20, 1);
-    let transform = con.transform.trans(25.0 * 13.0, 25.0);
-    // paint the text
-    text::Text::new_color(color::WHITE, 20)
+
+    
+    game.ships[0].render_board(con, g, OWN_OFFSET_X, OWN_OFFSET_Y);
+    game.attacks[0].render_board(con, g, ENEMY_OFFSET_X, ENEMY_OFFSET_Y);
+    // render text for the boards
+    let mut transform = con.transform.trans(BLOCK_SIZE * 5.5, BLOCK_SIZE * 16.0 );
+    text::Text::new_color(color::GRAY, 20)
+        .draw("Your board", glyphs, &con.draw_state, transform, g)
+        .unwrap();
+    transform = con.transform.trans(BLOCK_SIZE * 20.5, BLOCK_SIZE * 16.0);
+    text::Text::new_color(color::GRAY, 20)
+        .draw("Enemy board", glyphs, &con.draw_state, transform, g)
+        .unwrap();
+    transform = con.transform.trans(BLOCK_SIZE * 11.0, BLOCK_SIZE * 2.0);
+    text::Text::new_color(color::WHITE, 32)
         .draw("Battle ship game", glyphs, &con.draw_state, transform, g)
         .unwrap();
+    transform = con.transform.trans(BLOCK_SIZE * 2.0, BLOCK_SIZE * 18.0);
+    // paint the text
+    text::Text::new_color(color::WHITE,15)
+        .draw("* Click on enemy board's grid to attack", glyphs, &con.draw_state, transform, g)
+        .unwrap();
 }
+
+// render the animations for dropping attack
+fn render_animations(
+    con: &Context,
+    g: &mut G2d,
+    animations: &mut Vec<Animation>,
+    offset_x: i32,
+    offset_y: i32,
+) {
+    for &animation in animations.clone().iter() {
+        let color = [0.0, 0.0, 0.0, (500.0 - animation.time_remaining) / 500.0];
+        draw_circle(
+            color,
+            animation.position.x as i32 + offset_x,
+            animation.position.y as i32 + offset_y,
+            con,
+            g,
+        );
+    }
+}
+
+fn render_winning_screen(con: &Context, g: &mut G2d, glyphs: &mut Glyphs, winner: PlayerID) {
+    let message = match winner {
+        PlayerID::P1 => "You won the game! :)",
+        PlayerID::P2 => "You lost the game :(",
+    };
+    let mut transform = con.transform.trans(BLOCK_SIZE * 9.0, BLOCK_SIZE * 8.0);
+    text::Text::new_color(color::WHITE, 30)
+        .draw(message, glyphs, &con.draw_state, transform, g)
+        .unwrap();
+    transform = con.transform.trans(BLOCK_SIZE * 9.0, BLOCK_SIZE * 11.0);
+    text::Text::new_color(color::WHITE, 30)
+        .draw(
+            "Click anywhere to restart",
+            glyphs,
+            &con.draw_state,
+            transform,
+            g,
+        )
+        .unwrap();
+}
+
+#[derive(Copy, Clone)]
+struct Animation {
+    time_remaining: f32,
+    position: Position,
+}
+
 fn main() {
-    let (width, height) = (40, 20);
+    let (width, height) = (30, 20);
+    let mut last_time = SystemTime::now();
 
     let mut window: PistonWindow = WindowSettings::new(
-        "CMSC388Z Snake Game",
+        "Battleship game",
         [
-            ((width as f64) * 25.0) as u32,
-            ((height as f64) * 25.0) as u32,
+            ((width as f64) * BLOCK_SIZE) as u32,
+            ((height as f64) * BLOCK_SIZE) as u32,
         ],
     )
     .exit_on_esc(true)
@@ -484,44 +534,103 @@ fn main() {
         .unwrap();
     let mut game = GameState::initialize();
     game.start();
+    // instantiate vecotr for storing animation of dropping
+    let mut own_board_animations: Vec<Animation> = Vec::new();
+    let mut enemy_board_animations: Vec<Animation> = Vec::new();
 
     while let Some(event) = window.next() {
-        if let Some(Button::Keyboard(key)) = event.press_args() {
-            // press key reaction for the board?
-            // game.key_pressed(key);
-        }
+        let current_time = SystemTime::now();
+        let duration_passed = current_time
+            .duration_since(last_time)
+            .expect("Time went backwards")
+            .as_millis();
+        last_time = current_time;
 
         // clear the window
         // custom draw method to rerender everything
         // the draw becoems the render method
-        window.draw_2d(&event, |c, g, device| {
-            clear(BACK_COLOR, g);
-            // draw the board and character replace with render method with things passed in
-            render(&c, g, &mut glyphs, &mut game);
-            glyphs.factory.encoder.flush(device);
-        });
 
         if let Some(pos) = event.mouse_cursor_args() {
             mouse = pos;
         }
         if let Some(button) = event.press_args() {
-            // Find coordinates relative to upper left corner.
-            //let x = event.cursor_pos[0] - pos[0];
-            //let y = event.cursor_pos[1] - pos[1];
             // Check that coordinates are inside board boundaries.
             if button == Button::Mouse(MouseButton::Left) {
-                // calculate if we are at a board location
-                println!(
-                    "cell location is {} {}",
-                    (mouse[0] / 25.0).floor(),
-                    (mouse[1] / 25.0).floor()
-                );
+                if game.status == GameStatus::InProgress {
+                    // calculate if we are at a board location
+                    // check if it's on enemy board
+                    let x_grid = (mouse[0] / BLOCK_SIZE).floor() - ENEMY_OFFSET_X as f64;
+                    let y_grid = (mouse[1] / BLOCK_SIZE).floor() - ENEMY_OFFSET_Y as f64;
+                    if x_grid >= 0.0 && x_grid >= 0.0 && x_grid < 10.0 && y_grid < 10.0 {
+                        // check whether the placed was already attacked
+                        if game.attacks[0].get_cell_value(Position {
+                            x: x_grid as u8,
+                            y: y_grid as u8,
+                        }) == BoardCell::Empty
+                        {
+                            game.attack(
+                                PlayerID::P1,
+                                Position {
+                                    x: x_grid as u8,
+                                    y: y_grid as u8,
+                                },
+                                &mut enemy_board_animations,
+                            );
+
+                            // also have reaction for the attack
+                            game.randomly_attack(PlayerID::P2, &mut own_board_animations);
+                            // after attack check if game is over check p2 first then p1 since p1 attacks first
+                            game.check_winner();
+                        } else {
+                            // show already attacked
+                            println!("already attacked");
+                        }
+                    } 
+                } else {
+                    // restart the game
+                    game = GameState::initialize();
+                    game.start();
+                }
+                // check if the game has ended which means either side has no ship left
             }
         }
-        // update the arguments
-        // event.update(|arg| {
-        //     game.update(arg.dt);
-        // });
+        // // update the animation time
+        for animation in &mut own_board_animations {
+            animation.time_remaining -= duration_passed as f32;
+        }
+        for animation in &mut enemy_board_animations {
+            animation.time_remaining -= duration_passed as f32;
+        }
+        // filter out ones that are below 0
+        own_board_animations.retain(|animation| animation.time_remaining > 0.0);
+        enemy_board_animations.retain(|animation| animation.time_remaining > 0.0);
+
+        window.draw_2d(&event, |c, g, device| {
+            clear(BACK_COLOR, g);
+            // check the current game state and render accordingly
+            match game.status {
+                GameStatus::InProgress => {
+                    render(&c, g, &mut glyphs, &mut game);
+                    render_animations(&c, g, &mut own_board_animations, OWN_OFFSET_X, OWN_OFFSET_Y);
+                    render_animations(
+                        &c,
+                        g,
+                        &mut enemy_board_animations,
+                        ENEMY_OFFSET_X,
+                        ENEMY_OFFSET_Y,
+                    );
+                }
+                GameStatus::Complete(winner) => {
+                    render_winning_screen(&c, g, &mut glyphs, winner);
+                }
+                GameStatus::NotStarted => {
+                    // should be ignored but render board anyways
+                    render(&c, g, &mut glyphs, &mut game);
+                }
+            }
+            glyphs.factory.encoder.flush(device);
+        });
+        // print time
     }
     // let mut siv = cursive::default();
     // siv.add_global_callback('q', |s| s.quit());

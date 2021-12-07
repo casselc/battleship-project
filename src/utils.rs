@@ -1,3 +1,4 @@
+use piston_window::ellipse;
 use piston_window::line;
 use piston_window::rectangle;
 use piston_window::types::Color;
@@ -9,28 +10,28 @@ pub fn draw_block(color: Color, x: i32, y: i32, con: &Context, g: &mut G2d) {
     let gui_y = (y as f64) * 25.0;
     rectangle(color, [gui_x, gui_y, 25.0, 25.0], con.transform, g);
     line(
-        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
         1.0,
         [gui_x, gui_y, gui_x + 25.0, gui_y],
         con.transform,
         g,
     );
     line(
-        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
         1.0,
         [gui_x, gui_y, gui_x, gui_y + 25.0],
         con.transform,
         g,
     );
     line(
-        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
         1.0,
         [gui_x + 25.0, gui_y, gui_x + 25.0, gui_y + 25.0],
         con.transform,
         g,
     );
     line(
-        [1.0, 0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0, 1.0],
         1.0,
         [gui_x, gui_y + 25.0, gui_x + 25.0, gui_y + 25.0],
         con.transform,
@@ -38,25 +39,12 @@ pub fn draw_block(color: Color, x: i32, y: i32, con: &Context, g: &mut G2d) {
     );
 }
 
-pub fn draw_rectange(
-    color: Color,
-    start_x: i32,
-    start_y: i32,
-    width: i32,
-    height: i32,
-    con: &Context,
-    g: &mut G2d,
-) {
-    let gui_start_x = (start_x as f64) * 25.0;
-    let gui_start_y = (start_y as f64) * 25.0;
-    rectangle(
+pub fn draw_circle(color: Color, x: i32, y: i32, con: &Context, g: &mut G2d) {
+    let gui_x = (x as f64 + 0.15) * 25.0;
+    let gui_y = (y as f64 + 0.15) * 25.0;
+    ellipse(
         color,
-        [
-            gui_start_x,
-            gui_start_y,
-            25.0 * (width as f64),
-            25.0 * (height as f64),
-        ],
+        [gui_x, gui_y, 25.0 * 0.7, 25.0 * 0.7],
         con.transform,
         g,
     );
