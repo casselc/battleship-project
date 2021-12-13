@@ -4,7 +4,7 @@ mod utils;
 // use cursive::{immut2, Cursive};
 use rand::Rng;
 use std::ops::Not;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::SystemTime;
 use utils::{draw_block, draw_circle};
 extern crate find_folder;
 use piston_window::*;
@@ -30,11 +30,6 @@ impl Position {
             x: r.gen_range(0..10),
             y: r.gen_range(0..10),
         }
-    }
-
-    pub fn from_board_coords(coords: &str) -> Self {
-        // TODO: translate A1, etc to 0,0
-        Position::random()
     }
 
     pub fn overlaps(&self, positions: &Vec<Position>) -> bool {
@@ -71,8 +66,6 @@ impl Not for ShipOrientation {
 #[derive(PartialEq, Debug, Copy, Clone)]
 enum ShipStatus {
     Undamaged,
-    Damaged(u8),
-    Destroyed,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
@@ -89,7 +82,6 @@ enum BoardCell {
     Empty,
     Ship,
     DamagedShip,
-    DestroyedShip,
     FailedAttack,
     SuccessfulAttack,
 }
@@ -122,9 +114,6 @@ impl Board {
                         draw_block(color::LIME, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::DamagedShip => {
-                        draw_block(color::RED, row + x_offset, col + y_offset, con, g)
-                    }
-                    BoardCell::DestroyedShip => {
                         draw_block(color::RED, row + x_offset, col + y_offset, con, g)
                     }
                     BoardCell::FailedAttack => {
@@ -220,15 +209,11 @@ impl Ship {
 
 struct Player {
     ships: Vec<Ship>,
-    attacks_made: Vec<Position>,
 }
 
 impl Player {
     pub fn new() -> Self {
-        Player {
-            ships: vec![],
-            attacks_made: vec![],
-        }
+        Player { ships: vec![] }
     }
 
     pub fn all_ship_positions(&self) -> Vec<Position> {
@@ -439,11 +424,10 @@ impl GameState {
 fn render(con: &Context, g: &mut G2d, glyphs: &mut Glyphs, game: &mut GameState) {
     // draw the grid
 
-    
     game.ships[0].render_board(con, g, OWN_OFFSET_X, OWN_OFFSET_Y);
     game.attacks[0].render_board(con, g, ENEMY_OFFSET_X, ENEMY_OFFSET_Y);
     // render text for the boards
-    let mut transform = con.transform.trans(BLOCK_SIZE * 5.5, BLOCK_SIZE * 16.0 );
+    let mut transform = con.transform.trans(BLOCK_SIZE * 5.5, BLOCK_SIZE * 16.0);
     text::Text::new_color(color::GRAY, 20)
         .draw("Your board", glyphs, &con.draw_state, transform, g)
         .unwrap();
@@ -457,8 +441,14 @@ fn render(con: &Context, g: &mut G2d, glyphs: &mut Glyphs, game: &mut GameState)
         .unwrap();
     transform = con.transform.trans(BLOCK_SIZE * 2.0, BLOCK_SIZE * 18.0);
     // paint the text
-    text::Text::new_color(color::WHITE,15)
-        .draw("* Click on enemy board's grid to attack", glyphs, &con.draw_state, transform, g)
+    text::Text::new_color(color::WHITE, 15)
+        .draw(
+            "* Click on enemy board's grid to attack. Red means hit Blue means miss.",
+            glyphs,
+            &con.draw_state,
+            transform,
+            g,
+        )
         .unwrap();
 }
 
@@ -585,7 +575,7 @@ fn main() {
                             // show already attacked
                             println!("already attacked");
                         }
-                    } 
+                    }
                 } else {
                     // restart the game
                     game = GameState::initialize();
